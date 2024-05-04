@@ -8,7 +8,11 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.ui.Model;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -23,63 +27,80 @@ import java.util.Random;
 @SpringBootApplication
 public class HerokuApplication {
 
-  @Value("${spring.datasource.url}")
-  private String dbUrl;
+    @Value("${spring.datasource.url}")
+    private String dbUrl;
 
-  @Autowired
-  private DataSource dataSource;
+    @Autowired
+    private DataSource dataSource;
 
-  public static void main(String[] args) throws Exception {
-    SpringApplication.run(HerokuApplication.class, args);
-  }
-
-  @RequestMapping("/")
-  String index() {
-    return "index";
-  }
-
-  @RequestMapping("/db")
-  String db(Map<String, Object> model) {
-    System.out.println("DB method accessed by Jordan Pittman");
-    try (Connection connection = dataSource.getConnection()) {
-      Statement stmt = connection.createStatement();
-      stmt.executeUpdate("CREATE TABLE IF NOT EXISTS table_timestamp_and_random_string (tick timestamp, random_string varchar(30))");
-      String randomString = getRandomString(30);
-      stmt.executeUpdate("INSERT INTO table_timestamp_and_random_string VALUES (now(), '" + randomString + "')");
-      ResultSet rs = stmt.executeQuery("SELECT tick, random_string FROM table_timestamp_and_random_string");
-
-      ArrayList<String> output = new ArrayList<>();
-      while (rs.next()) {
-        output.add("Time: " + rs.getTimestamp("tick") + " Random: " + rs.getString("random_string"));
-      }
-
-      model.put("records", output);
-      return "db";
-    } catch (Exception e) {
-      model.put("message", e.getMessage());
-      return "error";
+    public static void main(String[] args) throws Exception {
+        SpringApplication.run(HerokuApplication.class, args);
     }
-  }
 
-  private String getRandomString(int length) {
-    String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    Random rng = new Random();
-    char[] text = new char[length];
-    for (int i = 0; i < length; i++) {
-        text[i] = characters.charAt(rng.nextInt(characters.length()));
+    @RequestMapping("/")
+    String index() {
+        return "index";
     }
-    return new String(text);
-  }
 
-  @Bean
-  public DataSource dataSource() throws SQLException {
-    if (dbUrl == null || dbUrl.isEmpty()) {
-      return new HikariDataSource();
-    } else {
-      HikariConfig config = new HikariConfig();
-      config.setJdbcUrl(dbUrl);
-      return new HikariDataSource(config);
+    @RequestMapping("/db")
+    String db(Map<String, Object> model) {
+        System.out.println("DB method accessed by Jordan Pittman");
+        try (Connection connection = dataSource.getConnection()) {
+            Statement stmt = connection.createStatement();
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS table_timestamp_and_random_string (tick timestamp, random_string varchar(30))");
+            String randomString = getRandomString(30);
+            stmt.executeUpdate("INSERT INTO table_timestamp_and_random_string VALUES (now(), '" + randomString + "')");
+            ResultSet rs = stmt.executeQuery("SELECT tick, random_string FROM table_timestamp_and_random_string");
+
+            ArrayList<String> output = new ArrayList<>();
+            while (rs.next()) {
+                output.add("Time: " + rs.getTimestamp("tick") + " Random: " + rs.getString("random_string"));
+            }
+
+            model.put("records", output);
+            return "db";
+        } catch (Exception e) {
+            model.put("message", e.getMessage());
+            return "error";
+        }
     }
-  }
 
+    @GetMapping("/dbinput")
+    public String dbInput() {
+        return "dbinput";
+    }
+
+    @PostMapping("/submit")
+    public String handleForm(@RequestParam String randomString, Model model) {
+        try (Connection connection = dataSource.getConnection()) {
+            Statement stmt = connection.createStatement();
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS table_timestamp_and_random_string (tick timestamp, random_string varchar(30))");
+            stmt.executeUpdate("INSERT INTO table_timestamp_and_random_string VALUES (now(), '" + randomString + "')");
+            return "redirect:/db";
+        } catch (Exception e) {
+            model.addAttribute("message", e.getMessage());
+            return "error";
+        }
+    }
+
+    private String getRandomString(int length) {
+        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        Random rng = new Random();
+        char[] text = new char[length];
+        for (int i = 0; i < length; i++) {
+            text[i] = characters.charAt(rng.nextInt(characters.length()));
+        }
+        return new String(text);
+    }
+
+    @Bean
+    public DataSource dataSource() throws SQLException {
+        if (dbUrl == null || dbUrl.isEmpty()) {
+            return new HikariDataSource();
+        } else {
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(dbUrl);
+            return new HikariDataSource(config);
+        }
+    }
 }
